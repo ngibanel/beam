@@ -21,20 +21,23 @@ import com.google.auto.value.AutoValue;
 import com.solacesystems.jcsmp.BytesMessage;
 import com.solacesystems.jcsmp.BytesXMLMessage;
 import com.solacesystems.jcsmp.JCSMPFactory;
-import com.solacesystems.jcsmp.SDTException;
-import com.solacesystems.jcsmp.SDTMap;
 import com.solacesystems.jcsmp.TextMessage;
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import org.apache.beam.sdk.io.solace.broker.SolaceUserPropertiesMapper;
 import org.apache.beam.sdk.schemas.AutoValueSchema;
 import org.apache.beam.sdk.schemas.annotations.DefaultSchema;
 import org.apache.beam.sdk.schemas.annotations.SchemaFieldNumber;
+import org.apache.beam.sdk.schemas.annotations.SchemaIgnore;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
@@ -88,10 +91,150 @@ public class Solace {
     UNKNOWN
   }
 
+  /** An immutable, typed value carried by a user-property map. */
+  @AutoValue
+  @DefaultSchema(AutoValueSchema.class)
+  public abstract static class UserPropertyValue implements Serializable {
+    public enum Kind {
+      BOOLEAN,
+      BYTE,
+      SHORT,
+      INTEGER,
+      LONG,
+      FLOAT,
+      DOUBLE,
+      CHARACTER,
+      STRING,
+      BYTES,
+      DESTINATION,
+      MAP,
+      STREAM
+    }
+
+    public abstract Kind getKind();
+
+    public abstract @Nullable Boolean getBooleanValue();
+
+    public abstract @Nullable Byte getByteValue();
+
+    public abstract @Nullable Short getShortValue();
+
+    public abstract @Nullable Integer getIntegerValue();
+
+    public abstract @Nullable Long getLongValue();
+
+    public abstract @Nullable Float getFloatValue();
+
+    public abstract @Nullable Double getDoubleValue();
+
+    public abstract @Nullable Character getCharacterValue();
+
+    public abstract @Nullable String getStringValue();
+
+    public abstract @Nullable List<Byte> getBytesValue();
+
+    public abstract @Nullable Destination getDestinationValue();
+
+    public abstract @Nullable Map<String, UserPropertyValue> getMapValue();
+
+    public abstract @Nullable List<UserPropertyValue> getStreamValue();
+
+    public static UserPropertyValue booleanValue(boolean value) {
+      return builder(Kind.BOOLEAN).setBooleanValue(value).build();
+    }
+
+    public static UserPropertyValue byteValue(byte value) {
+      return builder(Kind.BYTE).setByteValue(value).build();
+    }
+
+    public static UserPropertyValue shortValue(short value) {
+      return builder(Kind.SHORT).setShortValue(value).build();
+    }
+
+    public static UserPropertyValue integerValue(int value) {
+      return builder(Kind.INTEGER).setIntegerValue(value).build();
+    }
+
+    public static UserPropertyValue longValue(long value) {
+      return builder(Kind.LONG).setLongValue(value).build();
+    }
+
+    public static UserPropertyValue floatValue(float value) {
+      return builder(Kind.FLOAT).setFloatValue(value).build();
+    }
+
+    public static UserPropertyValue doubleValue(double value) {
+      return builder(Kind.DOUBLE).setDoubleValue(value).build();
+    }
+
+    public static UserPropertyValue characterValue(char value) {
+      return builder(Kind.CHARACTER).setCharacterValue(value).build();
+    }
+
+    public static UserPropertyValue stringValue(String value) {
+      return builder(Kind.STRING).setStringValue(value).build();
+    }
+
+    public static UserPropertyValue bytesValue(List<Byte> value) {
+      return builder(Kind.BYTES).setBytesValue(List.copyOf(value)).build();
+    }
+
+    public static UserPropertyValue destinationValue(Destination destination) {
+      return builder(Kind.DESTINATION).setDestinationValue(destination).build();
+    }
+
+    public static UserPropertyValue mapValue(Map<String, UserPropertyValue> value) {
+      return builder(Kind.MAP)
+          .setMapValue(Collections.unmodifiableMap(new LinkedHashMap<>(value)))
+          .build();
+    }
+
+    public static UserPropertyValue streamValue(List<UserPropertyValue> value) {
+      return builder(Kind.STREAM).setStreamValue(List.copyOf(new ArrayList<>(value))).build();
+    }
+
+    private static Builder builder(Kind kind) {
+      return new AutoValue_Solace_UserPropertyValue.Builder().setKind(kind);
+    }
+
+    @AutoValue.Builder
+    abstract static class Builder {
+      abstract Builder setKind(Kind value);
+
+      abstract Builder setBooleanValue(@Nullable Boolean value);
+
+      abstract Builder setByteValue(@Nullable Byte value);
+
+      abstract Builder setShortValue(@Nullable Short value);
+
+      abstract Builder setIntegerValue(@Nullable Integer value);
+
+      abstract Builder setLongValue(@Nullable Long value);
+
+      abstract Builder setFloatValue(@Nullable Float value);
+
+      abstract Builder setDoubleValue(@Nullable Double value);
+
+      abstract Builder setCharacterValue(@Nullable Character value);
+
+      abstract Builder setStringValue(@Nullable String value);
+
+      abstract Builder setBytesValue(@Nullable List<Byte> value);
+
+      abstract Builder setDestinationValue(@Nullable Destination value);
+
+      abstract Builder setMapValue(@Nullable Map<String, UserPropertyValue> value);
+
+      abstract Builder setStreamValue(@Nullable List<UserPropertyValue> value);
+
+      abstract UserPropertyValue build();
+    }
+  }
+
   /** Represents a Solace message destination (either a Topic or a Queue). */
   @AutoValue
   @DefaultSchema(AutoValueSchema.class)
-  public abstract static class Destination {
+  public abstract static class Destination implements Serializable {
     /**
      * Gets the name of the destination.
      *
@@ -117,6 +260,33 @@ public class Solace {
       public abstract Builder setType(DestinationType type);
 
       public abstract Destination build();
+    }
+  }
+
+  /** A schema-safe encoded user property. */
+  @AutoValue
+  @DefaultSchema(AutoValueSchema.class)
+  public abstract static class UserProperty implements Serializable {
+    public abstract String getKey();
+
+    public abstract UserPropertyValue.Kind getKind();
+
+    @SuppressWarnings("mutable")
+    public abstract byte[] getValue();
+
+    public static Builder builder() {
+      return new AutoValue_Solace_UserProperty.Builder();
+    }
+
+    @AutoValue.Builder
+    public abstract static class Builder {
+      public abstract Builder setKey(String key);
+
+      public abstract Builder setKind(UserPropertyValue.Kind kind);
+
+      public abstract Builder setValue(byte[] value);
+
+      public abstract UserProperty build();
     }
   }
 
@@ -281,15 +451,22 @@ public class Solace {
     @SchemaFieldNumber("13")
     public abstract PayloadType getPayloadType();
 
+    /** Gets the schema-safe transport representation of the user properties. */
+    @SchemaFieldNumber("14")
+    abstract List<UserProperty> getUserProperties();
+
     /**
-     * Gets the user properties of the message as a string map.
+     * Gets the typed, SDK-independent user properties of the message.
      *
-     * <p>Mapped from {@link BytesXMLMessage#getProperties()}. Values are stringified.
+     * <p>Mapped from {@link BytesXMLMessage#getProperties()}. This accessor is excluded from the
+     * Beam schema because {@link UserPropertyValue} recursively represents SDT maps and streams.
      *
      * @return The user properties, or an empty map if the message carries none.
      */
-    @SchemaFieldNumber("14")
-    public abstract Map<String, String> getUserProperties();
+    @SchemaIgnore
+    public final Map<String, UserPropertyValue> getUserPropertiesMap() {
+      return SolaceUserPropertiesMapper.toUserPropertyValueMap(getUserProperties());
+    }
 
     /** Gets the payload decoded as UTF-8 when this record has type {@link PayloadType#TEXT}. */
     public final String getText() {
@@ -308,7 +485,7 @@ public class Solace {
           .setTimeToLive(0)
           .setAttachmentBytes(new byte[0])
           .setPayloadType(PayloadType.BYTES_XML)
-          .setUserProperties(Collections.emptyMap());
+          .setUserProperties(Collections.emptyList());
     }
 
     @AutoValue.Builder
@@ -348,7 +525,11 @@ public class Solace {
 
       public abstract Builder setAttachmentBytes(byte[] attachmentBytes);
 
-      public abstract Builder setUserProperties(Map<String, String> userProperties);
+      abstract Builder setUserProperties(List<UserProperty> userProperties);
+
+      public Builder setUserPropertiesMap(Map<String, UserPropertyValue> userProperties) {
+        return setUserProperties(SolaceUserPropertiesMapper.toUserProperties(userProperties));
+      }
 
       public abstract Record build();
     }
@@ -474,7 +655,8 @@ public class Solace {
 
       Destination replyTo = getDestination(msg.getCorrelationId(), msg.getReplyTo());
       Destination destination = getDestination(msg.getCorrelationId(), msg.getDestination());
-      Map<String, String> userProperties = getUserProperties(msg.getProperties());
+      Map<String, UserPropertyValue> userProperties =
+          SolaceUserPropertiesMapper.toUserPropertyValueMap(msg.getProperties());
 
       Record.Builder recordBuilder = decodePayload(msg);
       return recordBuilder
@@ -492,7 +674,7 @@ public class Solace {
               msg.getReplicationGroupMessageId() != null
                   ? msg.getReplicationGroupMessageId().toString()
                   : null)
-          .setUserProperties(userProperties)
+          .setUserPropertiesMap(userProperties)
           .build();
     }
 
@@ -539,8 +721,8 @@ public class Solace {
       msg.setSenderTimestamp(senderTimestamp);
       msg.setApplicationMessageId(record.getMessageId());
 
-      if (!record.getUserProperties().isEmpty()) {
-        msg.setProperties(createUserProperties(record.getUserProperties()));
+      if (!record.getUserPropertiesMap().isEmpty()) {
+        msg.setProperties(SolaceUserPropertiesMapper.toSDTMap(record.getUserPropertiesMap()));
       }
 
       return msg;
@@ -622,48 +804,6 @@ public class Solace {
       byte[] attachment = new byte[buffer.remaining()];
       buffer.get(attachment);
       return attachment;
-    }
-
-    private static Map<String, String> getUserProperties(@Nullable SDTMap properties) {
-      if (properties == null || properties.isEmpty()) {
-        return Collections.emptyMap();
-      }
-
-      Map<String, String> userProperties = new HashMap<>();
-      for (String key : properties.keySet()) {
-        String value = stringifyUserProperty(properties, key);
-        if (value == null) {
-          LOG.warn("User property '{}' has a null value, skipping.", key);
-          continue;
-        }
-        userProperties.put(key, value);
-      }
-      return Collections.unmodifiableMap(userProperties);
-    }
-
-    private static @Nullable String stringifyUserProperty(SDTMap properties, String key) {
-      try {
-        Object value = properties.get(key);
-        if (value == null) {
-          return null;
-        }
-        return String.valueOf(value);
-      } catch (SDTException e) {
-        LOG.error("Could not read user property '{}'.", key, e);
-        return null;
-      }
-    }
-
-    private static SDTMap createUserProperties(Map<String, String> userProperties) {
-      SDTMap properties = JCSMPFactory.onlyInstance().createMap();
-      for (Map.Entry<String, String> entry : userProperties.entrySet()) {
-        try {
-          properties.putString(entry.getKey(), entry.getValue());
-        } catch (SDTException e) {
-          LOG.error("Could not write user property '{}'.", entry.getKey(), e);
-        }
-      }
-      return properties;
     }
   }
 }

@@ -20,10 +20,14 @@ package org.apache.beam.sdk.io.solace.data;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import org.apache.beam.sdk.io.solace.data.Solace.Record;
+import org.apache.beam.sdk.io.solace.data.Solace.UserPropertyValue;
 import org.junit.Test;
 
 public class SolaceRecordTest {
@@ -39,7 +43,7 @@ public class SolaceRecordTest {
   public void testDefaultUserPropertiesIsEmpty() {
     Record record = Record.builder().setMessageId("id").setPayload(new byte[0]).build();
 
-    assertTrue(record.getUserProperties().isEmpty());
+    assertTrue(record.getUserPropertiesMap().isEmpty());
   }
 
   @Test
@@ -48,10 +52,30 @@ public class SolaceRecordTest {
         Record.builder()
             .setMessageId("id")
             .setPayload(new byte[0])
-            .setUserProperties(Collections.singletonMap("key", "value"))
+            .setUserPropertiesMap(
+                Collections.singletonMap("key", UserPropertyValue.stringValue("value")))
             .build();
 
-    assertEquals(Collections.singletonMap("key", "value"), record.getUserProperties());
+    assertEquals(
+        Collections.singletonMap("key", UserPropertyValue.stringValue("value")),
+        record.getUserPropertiesMap());
+  }
+
+  @Test
+  public void testUserPropertyBytesAreImmutable() {
+    List<Byte> bytes = new java.util.ArrayList<>(Arrays.asList((byte) 1, (byte) 2, (byte) 3));
+    UserPropertyValue value = UserPropertyValue.bytesValue(bytes);
+    bytes.set(0, (byte) 4);
+
+    assertEquals(Arrays.asList((byte) 1, (byte) 2, (byte) 3), value.getBytesValue());
+
+    try {
+      value.getBytesValue().set(1, (byte) 5);
+      fail("Expected bytes value to be immutable.");
+    } catch (UnsupportedOperationException expected) {
+      // The copied binary representation cannot be mutated.
+    }
+    assertEquals(Arrays.asList((byte) 1, (byte) 2, (byte) 3), value.getBytesValue());
   }
 
   @Test
